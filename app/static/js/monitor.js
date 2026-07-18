@@ -24,12 +24,69 @@ document.addEventListener('DOMContentLoaded', () => {
     const timestampToggle = document.getElementById('timestamp_toggle');
     const intervalInput = document.getElementById('interval_input');
     const timedSendToggle = document.getElementById('timed_send_toggle');
+    const sidebarToggle = document.getElementById('sidebar_toggle');
+    const scrollbackLimitInput = document.getElementById('scrollback_limit_input');
+    const fontDecreaseButton = document.getElementById('font_decrease_button');
+    const fontIncreaseButton = document.getElementById('font_increase_button');
+    const fontSizeDisplay = document.getElementById('font_size_display');
+    const pauseLogButton = document.getElementById('pause_log_button');
+    const timedSendContainer = document.getElementById('timed_send_container');
+    const timedSendOptionsToggle = document.getElementById('timed_send_options_toggle');
     let timedSendTimerId = null;
     let isClosingManually = false;
     let activeBaudrate = '';
+    let isLogPaused = false;
 
-    // Define the maximum number of log lines to keep in the display
-    const MAX_LOG_LINES = 5000;
+    // --- Pause/resume log rendering ---
+    pauseLogButton.addEventListener('click', () => {
+        isLogPaused = !isLogPaused;
+        pauseLogButton.textContent = isLogPaused ? 'Resume' : 'Pause';
+        pauseLogButton.classList.toggle('paused', isLogPaused);
+    });
+
+    // --- Timed send: collapse/expand the interval field ---
+    timedSendOptionsToggle.addEventListener('click', () => {
+        timedSendContainer.classList.toggle('collapsed');
+    });
+
+    // Maximum number of log lines to keep in the display, configurable via the scrollback limit setting
+    let maxLogLines = parseInt(scrollbackLimitInput.value, 10) || 5000;
+
+    // --- Sidebar collapse/expand ---
+    sidebarToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+    });
+
+    // --- Scrollback limit ---
+    scrollbackLimitInput.addEventListener('change', function() {
+        let value = parseInt(this.value, 10);
+        if (isNaN(value) || value < 100) value = 100;
+        this.value = value;
+        maxLogLines = value;
+        trimLogToLimit();
+    });
+
+    // --- Log font size ---
+    const MIN_LOG_FONT_SIZE = 10;
+    const MAX_LOG_FONT_SIZE = 24;
+    let logFontSize = parseInt(getComputedStyle(logDiv).fontSize, 10) || 14;
+
+    function applyLogFontSize() {
+        logDiv.style.fontSize = logFontSize + 'px';
+        fontSizeDisplay.textContent = logFontSize + 'px';
+        fontDecreaseButton.disabled = logFontSize <= MIN_LOG_FONT_SIZE;
+        fontIncreaseButton.disabled = logFontSize >= MAX_LOG_FONT_SIZE;
+    }
+
+    fontDecreaseButton.addEventListener('click', () => {
+        logFontSize = Math.max(MIN_LOG_FONT_SIZE, logFontSize - 1);
+        applyLogFontSize();
+    });
+    fontIncreaseButton.addEventListener('click', () => {
+        logFontSize = Math.min(MAX_LOG_FONT_SIZE, logFontSize + 1);
+        applyLogFontSize();
+    });
+    applyLogFontSize();
 
     // --- Baud Rate: show/hide custom input ---
     baudrateSelect.addEventListener('change', function() {
@@ -93,13 +150,13 @@ document.addEventListener('DOMContentLoaded', () => {
         _socket.on('serial_data_recv', (msg) => {
             if (!hexDisplayToggle.checked) {
                 flashLed(rxLed);
-                logToScreen(msg.data, 'rx');
+                if (!isLogPaused) logToScreen(msg.data, 'rx');
             }
         });
         _socket.on('serial_data_recv_hex', (msg) => {
             if (hexDisplayToggle.checked) {
                 flashLed(rxLed);
-                logToScreen(msg.data, 'hex');
+                if (!isLogPaused) logToScreen(msg.data, 'hex');
             }
         });
         _socket.on('serial_error', (msg) => {
@@ -180,13 +237,15 @@ document.addEventListener('DOMContentLoaded', () => {
         line.appendChild(document.createTextNode(message));
         logDiv.appendChild(line);
 
-        // Check if the number of log lines exceeds the maximum
-        if (logDiv.childElementCount > MAX_LOG_LINES) {
-            // If it does, remove the oldest log line (the first child)
-            logDiv.removeChild(logDiv.firstChild);
-        }
+        trimLogToLimit();
 
         if (isScrolledToBottom) logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function trimLogToLimit() {
+        while (logDiv.childElementCount > maxLogLines) {
+            logDiv.removeChild(logDiv.firstChild);
+        }
     }
 
     clearLogButton.addEventListener('click', () => {
@@ -225,13 +284,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function sendData() {
         const data = sendInput.value;
-        if (!data || !connectButton.classList.contains('connected')) return;
+        if (!data || !connectButton.classList.contains('connected')) return false;
 
         if (hexSendToggle.checked) {
             const hexClean = data.replace(/[\s:]/g, '');
             if (!/^[0-9a-fA-F]+$/.test(hexClean) || hexClean.length % 2 !== 0) {
                 alert('Invalid HEX input. Please enter pairs of hex digits separated by spaces (e.g. FF 01 AB CD).');
-                return;
+                return false;
             }
             socket.emit('serial_data_send', { data: hexClean, is_hex: true });
             logToScreen(hexClean.toUpperCase().match(/.{2}/g).join(' '), 'tx');
@@ -249,11 +308,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         flashLed(txLed);
+        return true;
     }
 
-    sendButton.addEventListener('click', sendData);
+    // Manual sends (button click / Enter) clear the input afterwards; timed
+    // send re-invokes sendData() directly off the timer so it keeps reusing
+    // the same input value on each tick.
+    sendButton.addEventListener('click', () => {
+        if (sendData()) sendInput.value = '';
+    });
     sendInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') { e.preventDefault(); sendData(); }
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (sendData()) sendInput.value = '';
+        }
     });
 
     function flashLed(ledElement) {

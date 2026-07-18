@@ -68,20 +68,32 @@
         <div style="flex-grow: 1;"></div>
         <button id="connect_button" class="disconnected">Open Port</button>
     </div>
+    <button id="sidebar_toggle" class="sidebar-toggle" title="Toggle Connection Settings">&#8249;</button>
 
     <!-- Main Content Area -->
     <div class="main-content">
         <!-- Display Controls -->
         <div class="display-controls">
-            <div class="control-group">
-                <input type="checkbox" id="timestamp_toggle" checked>
-                <label for="timestamp_toggle">Show Timestamps</label>
+            <div class="control-group toggle-stack">
+                <div class="toggle-row">
+                    <input type="checkbox" id="timestamp_toggle" checked>
+                    <label for="timestamp_toggle">Timestamps</label>
+                </div>
+                <div class="toggle-row">
+                    <input type="checkbox" id="hex_display_toggle">
+                    <label for="hex_display_toggle">HEX Display</label>
+                </div>
             </div>
-            <div class="control-group">
-                <input type="checkbox" id="hex_display_toggle">
-                <label for="hex_display_toggle">HEX Display</label>
+            <div class="control-group scrollback-group">
+                <label for="scrollback_limit_input">Scrollback</label>
+                <input type="number" id="scrollback_limit_input" min="100" step="100" value="5000">
             </div>
-            <div style="flex-grow: 1;"></div>
+            <div class="control-group font-size-group">
+                <!-- <label>Font</label> -->
+                <button id="font_decrease_button" type="button" title="Decrease font size">A-</button>
+                <span id="font_size_display">14px</span>
+                <button id="font_increase_button" type="button" title="Increase font size">A+</button>
+            </div>
             <!-- *** NEW: Added Save Log button *** -->
             <button id="save_log_button" disabled>Save Log</button>
             <button id="clear_log_button">Clear Log</button>
@@ -97,15 +109,19 @@
                 <option value="none">None</option>
             </select>
             <button id="send_button" type="button" disabled>Send</button>
+            <button id="pause_log_button" type="button">Pause</button>
             <div class="hex-send-container">
                 <input type="checkbox" id="hex_send_toggle" disabled>
                 <label for="hex_send_toggle">HEX</label>
             </div>
-            <div class="timed-send-container">
-                <input type="number" id="interval_input" value="1000" min="100">
-                <span>ms</span>
-                <input type="checkbox" id="timed_send_toggle">
-                <label for="timed_send_toggle" id="timed_send_toggle_label">Timed Send</label>
+            <div class="timed-send-container collapsed" id="timed_send_container">
+                <button id="timed_send_options_toggle" class="timed-send-options-toggle" type="button" title="Show/hide timed send controls">&#9201;</button>
+                <span class="timed-send-interval">
+                    <input type="number" id="interval_input" value="1000" min="100">
+                    <span>ms</span>
+                    <input type="checkbox" id="timed_send_toggle">
+                    <label for="timed_send_toggle" id="timed_send_toggle_label">Timed Send</label>
+                </span>
             </div>
         </div>
 

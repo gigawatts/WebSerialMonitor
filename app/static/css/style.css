@@ -16,9 +16,10 @@ html, body {
     overflow: hidden; 
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
 }
-.page-container { 
-    display: flex; 
-    height: 100%; 
+.page-container {
+    display: flex;
+    height: 100%;
+    position: relative;
 }
 
 /* --- Sidebar Styles --- */
@@ -32,6 +33,69 @@ html, body {
     flex-direction: column;
     gap: 15px;
     overflow-y: auto;
+    overflow-x: hidden;
+    transition: width 0.2s ease, padding 0.2s ease;
+}
+.sidebar.collapsed {
+    width: 0;
+    padding-top: 20px;
+    padding-bottom: 20px;
+    padding-left: 0;
+    padding-right: 0;
+    border-right: none;
+}
+.sidebar.collapsed > * {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* --- Sidebar Toggle Button --- */
+.sidebar-toggle {
+    position: absolute;
+    top: 12px;
+    left: 280px;
+    transform: translateX(-50%) rotate(0deg);
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    line-height: 1;
+    font-size: 16px;
+    border-radius: 50%;
+    background-color: #fff;
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    z-index: 10;
+    transition: left 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
+}
+.sidebar-toggle:hover {
+    background-color: var(--light-grey);
+}
+/* The global `button:active { transform: scale(0.98); }` rule outranks the
+   plain .sidebar-toggle transform (element+pseudo-class beats one class),
+   so on mousedown it was stripping translateX(-50%) and snapping the button
+   sideways before mouseup — meaning the click never landed. Override :active
+   here, keeping the same position transform plus the press-feedback scale. */
+.sidebar-toggle:active {
+    transform: translateX(-50%) rotate(0deg) scale(0.98);
+}
+/* Collapsed: keep translateX(-50%) in both states so "transform" interpolates
+   smoothly (only the rotation changes) instead of snapping instantly, which
+   used to jump the button sideways out from under the cursor mid-click.
+   The "left" value keeps the whole button on-screen instead of centering it
+   on the (now zero-width) sidebar edge, which used to clip half of it off-canvas. */
+.sidebar.collapsed + .sidebar-toggle {
+    left: 26px;
+    transform: translateX(-50%) rotate(180deg);
+}
+.sidebar.collapsed + .sidebar-toggle:active {
+    transform: translateX(-50%) rotate(180deg) scale(0.98);
+}
+@media (pointer: coarse) {
+    .sidebar-toggle {
+        width: 44px;
+        height: 44px;
+        font-size: 18px;
+    }
 }
 .sidebar h3 { 
     margin: 0 0 10px 0; 
@@ -72,6 +136,7 @@ button {
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    white-space: nowrap;
     transition: background-color 0.2s ease-in-out, transform 0.1s ease;
 }
 button:hover {
@@ -117,11 +182,32 @@ button:disabled {
     background-color: #5a6268;
 }
 
+#pause_log_button {
+    font-weight: normal;
+    background-color: var(--text-light-color);
+}
+#pause_log_button:hover {
+    background-color: #5a6268;
+}
+#pause_log_button.paused {
+    background-color: #ffc107;
+    color: #212529;
+}
+#pause_log_button.paused:hover {
+    background-color: #e0a800;
+}
+
 /* --- Main Content Styles --- */
-.main-content { 
-    flex-grow: 1; 
-    display: flex; 
-    flex-direction: column; 
+.main-content {
+    flex-grow: 1;
+    /* Without this, a flex item's default min-width:auto keeps it from
+       shrinking below its content's intrinsic width — since send-controls
+       doesn't wrap, that content forced main-content (and the whole page)
+       wider than the viewport, hiding everything past the edge instead of
+       ever letting display-controls's flex-wrap actually kick in. */
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
     background-color: #fff; 
 }
 .display-controls {
@@ -129,13 +215,92 @@ button:disabled {
     border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 20px;
+    justify-content: flex-end;
+    gap: 10px;
+    row-gap: 8px;
 }
-.display-controls .control-group label { 
-    margin-left: 5px; 
-    user-select: none; 
-    cursor: pointer; 
+/* Items keep their natural size and wrap as whole units onto a new line
+   rather than being individually squeezed, which used to force the label
+   and its control onto separate lines inside the same narrow box. */
+.display-controls > * {
+    flex-shrink: 0;
+}
+.display-controls .control-group label {
+    margin-left: 5px;
+    user-select: none;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.toggle-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 12px;
+}
+.toggle-stack .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.toggle-stack input[type="checkbox"] {
+    width: 12px;
+    height: 12px;
+    margin: 0;
+}
+.display-controls .toggle-stack label {
+    font-size: 12px;
+    margin-left: 4px;
+}
+.scrollback-group {
+    display: flex;
+    align-items: center;
+    border-left: 2px solid var(--light-grey);
+    padding-left: 10px;
+}
+.scrollback-group label {
+    margin-right: 6px;
+    cursor: default;
+    white-space: nowrap;
+}
+.scrollback-group input[type="number"] {
+    width: 90px;
+    padding: 6px 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+    text-align: center;
+}
+.font-size-group {
+    display: flex;
+    align-items: center;
+    border-left: 2px solid var(--light-grey);
+    padding-left: 10px;
+}
+.font-size-group label {
+    margin-right: 6px;
+    cursor: default;
+    white-space: nowrap;
+}
+.font-size-group button {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 12px;
+    font-weight: normal;
+    line-height: 1;
+    background-color: var(--text-light-color);
+}
+.font-size-group button:hover {
+    background-color: #5a6268;
+}
+#font_size_display {
+    display: inline-block;
+    min-width: 36px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-light-color);
 }
 #log {
     flex-grow: 1;
@@ -170,15 +335,24 @@ button:disabled {
     border-top: 1px solid var(--border-color);
     flex-shrink: 0;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 10px;
+    row-gap: 8px;
 }
-#send_input { 
-    flex-grow: 1; 
-    padding: 10px; 
-    border: 1px solid #ced4da; 
-    border-radius: 4px; 
-    font-size: 14px; 
+/* Same reasoning as .display-controls: keep each control at its natural
+   size so the row wraps as whole units instead of squeezing/reflowing
+   internally. send_input is exempt so it can grow/shrink to fill its line. */
+.send-controls > *:not(#send_input) {
+    flex-shrink: 0;
+}
+#send_input {
+    flex-grow: 1;
+    min-width: 140px;
+    padding: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
 }
 
 /* Timed Send Controls Styles */
@@ -188,6 +362,33 @@ button:disabled {
     gap: 5px;
     border-left: 2px solid var(--light-grey);
     padding-left: 10px;
+}
+.timed-send-options-toggle {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 14px;
+    font-weight: normal;
+    line-height: 1;
+    flex-shrink: 0;
+    background-color: var(--text-light-color);
+}
+.timed-send-options-toggle:hover {
+    background-color: #5a6268;
+}
+.timed-send-interval {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    overflow: hidden;
+    max-width: 260px;
+    opacity: 1;
+    transition: max-width 0.2s ease, opacity 0.2s ease;
+}
+.timed-send-container.collapsed .timed-send-interval {
+    max-width: 0;
+    opacity: 0;
+    pointer-events: none;
 }
 #interval_input {
     width: 80px;
@@ -201,6 +402,7 @@ button:disabled {
     font-size: 14px;
     cursor: pointer;
     user-select: none;
+    white-space: nowrap;
 }
 
 .status-bar {
@@ -297,4 +499,5 @@ button:disabled {
     font-size: 14px;
     cursor: pointer;
     user-select: none;
+    white-space: nowrap;
 }
